@@ -1,5 +1,6 @@
 ﻿using MauiAppTempoAgora.Models;
 using MauiAppTempoAgora.Services;
+using Newtonsoft.Json;
 
 namespace MauiAppTempoAgora
 {
@@ -16,42 +17,50 @@ namespace MauiAppTempoAgora
         {
             try
             {
-                if (!string.IsNullOrEmpty(txt_cidade.Text))
+                if (!string.IsNullOrWhiteSpace(txt_cidade.Text))
                 {
-                    Tempo? t = await DataService.GetPrevisao(txt_cidade.Text);
+                    var response = await DataService.GetHttpResponse(txt_cidade.Text);
+
+                    if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    {
+                        await DisplayAlert("Erro", "Cidade não encontrada.", "OK");
+                        return;
+                    }
+
+                    response.EnsureSuccessStatusCode();
+
+                    string json = await response.Content.ReadAsStringAsync();
+                    Tempo? t = JsonConvert.DeserializeObject<Tempo>(json);
 
                     if (t != null)
                     {
-                        string dados_previsao = "";
-
-                        dados_previsao = $"Latitude: {t.lat} \n" +
-                                         $"Longitude: {t.lon} \n" +
-                                         $"Nascer do Sol: {t.sunrise} \n" +
-                                         $"Por do Sol: {t.sunset} \n" +
-                                         $"Temp Máx: {t.temp_max} \n" +
-                                         $"Temp Min: {t.temp_min} \n";
-
-                        lbl_res.Text = dados_previsao;
-
+                        lbl_res.Text = $"Latitude: {t.coord.lat}\n" +
+                                       $"Longitude: {t.coord.lon}\n" +
+                                       $"Clima: {t.weather[0].description}\n" +
+                                       $"Temperatura Máxima: {t.main.temp_max}°C\n" +
+                                       $"Temperatura Mínima: {t.main.temp_min}°C\n" +
+                                       $"Velocidade do Vento: {t.wind.speed} m/s\n" +
+                                       $"Visibilidade: {t.visibility} m";
                     }
                     else
                     {
-
-                        lbl_res.Text = "Sem dados de Previsão";
+                        lbl_res.Text = "Não foi possível obter os dados.";
                     }
-
                 }
                 else
                 {
-                    lbl_res.Text = "Preencha a cidade.";
+                    await DisplayAlert("Aviso", "Digite o nome da cidade.", "OK");
                 }
-
+            }
+            catch (HttpRequestException)
+            {
+                await DisplayAlert("Erro", "Sem conexão com a internet.", "OK");
             }
             catch (Exception ex)
             {
-                await DisplayAlert("Ops", ex.Message, "OK");
+                await DisplayAlert("Erro inesperado", ex.Message, "OK");
             }
         }
     }
 
-}
+    
